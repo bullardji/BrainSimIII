@@ -29,3 +29,18 @@ def test_module_add_counts_creates_aggregate_relationships():
     mod.do_the_work()
 
     assert uks.get_relationship("thing", "has-attr.2", "group") is not None
+
+
+def test_module_add_counts_timer_reset_and_params():
+    ThingLabels.clear_label_list()
+    transient_relationships.clear()
+    uks = UKS()
+    mod = ModuleAddCounts()
+    mod.set_uks(uks)
+    mod.set_parameters({"interval": 0.1})
+    mod.on_start()
+    assert mod._timer is not None
+    mod.reset()
+    assert mod._timer is None
+    params = mod.get_parameters()
+    assert params["interval"] == 0.1

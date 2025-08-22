@@ -22,12 +22,22 @@ class ModuleRemoveRedundancy(ModuleBase):
         self.is_enabled: bool = False
         self.debug_string = "Initialized\n"
         self._timer: threading.Timer | None = None
+        self.interval: float = 10.0
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
     def initialize(self) -> None:
+        pass
+
+    def on_start(self) -> None:
         self._setup()
+
+    def on_stop(self) -> None:
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        super().on_stop()
 
     def fire(self) -> None:
         # The original module performs all work on a timer; ``fire`` merely
@@ -39,7 +49,7 @@ class ModuleRemoveRedundancy(ModuleBase):
     # ------------------------------------------------------------------
     def _setup(self) -> None:
         if self._timer is None:
-            self._timer = threading.Timer(10.0, self._same_thread_callback)
+            self._timer = threading.Timer(self.interval, self._same_thread_callback)
             self._timer.daemon = True
             self._timer.start()
 
@@ -48,7 +58,7 @@ class ModuleRemoveRedundancy(ModuleBase):
             # Reschedule the timer and exit
             self._setup()
             return
-        threading.Thread(target=self.do_the_work, daemon=True).start()
+        self.start_worker(self.do_the_work)
         self._setup()
 
     # ------------------------------------------------------------------
@@ -64,8 +74,7 @@ class ModuleRemoveRedundancy(ModuleBase):
     def _remove_redundant_attributes(self, t: Thing) -> None:
         for parent in t.Parents:
             rels_with_inheritance = self.the_uks.get_all_relationships([parent], False)
-            for i in range(len(t.relationships)):
-                r = t.relationships[i]
+            for r in list(t.relationships):
                 match = next(
                     (
                         x
@@ -81,8 +90,16 @@ class ModuleRemoveRedundancy(ModuleBase):
                     if r.weight < 0.5:
                         t.remove_relationship(r)
                         self.debug_string += f"Removed: {r}\n"
-                        return  # relationship list changed; restart on next parent
-                    self.debug_string += f"{r}   ({r.weight:0.00})\n"
+                        # restart scanning from scratch since list changed
+                        return self._remove_redundant_attributes(t)
+                    else:
+                        self.debug_string += f"{r}   ({r.weight:0.00})\n"
+
+    def get_parameters(self) -> dict:
+        return {"interval": self.interval}
+
+    def set_parameters(self, params: dict) -> None:
+        self.interval = float(params.get("interval", self.interval))
 
     # Utility for tests to cancel timer
     def cancel_timer(self) -> None:

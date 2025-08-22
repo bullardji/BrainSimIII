@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Thing class representing nodes in the Universal Knowledge Store."""
 
+import threading
 from datetime import timedelta
 from typing import List, Optional
 
@@ -19,6 +20,7 @@ class Thing:
         self.relationships: List[Relationship] = []
         self.relationships_from: List[Relationship] = []
         self.relationships_as_type: List[Relationship] = []
+        self._lock = threading.RLock()
         self.Label = label
 
     def __repr__(self) -> str:  # pragma: no cover - debugging helper
@@ -75,10 +77,13 @@ class Thing:
         """
         ttl_td = timedelta(seconds=ttl) if ttl is not None else timedelta.max
         rel = Relationship(self, reltype, target, weight, ttl_td)
-        self.relationships.append(rel)
+        with self._lock:
+            self.relationships.append(rel)
         if target is not None:
-            target.relationships_from.append(rel)
-        reltype.relationships_as_type.append(rel)
+            with target._lock:
+                target.relationships_from.append(rel)
+        with reltype._lock:
+            reltype.relationships_as_type.append(rel)
         if ttl is not None:
             transient_relationships.append(rel)
         return rel
@@ -98,12 +103,16 @@ class Thing:
                 break
 
     def remove_relationship(self, rel: Relationship) -> None:
-        if rel in self.relationships:
-            self.relationships.remove(rel)
-        if rel.target and rel in rel.target.relationships_from:
-            rel.target.relationships_from.remove(rel)
-        if rel in rel.reltype.relationships_as_type:
-            rel.reltype.relationships_as_type.remove(rel)
+        with self._lock:
+            if rel in self.relationships:
+                self.relationships.remove(rel)
+        if rel.target:
+            with rel.target._lock:
+                if rel in rel.target.relationships_from:
+                    rel.target.relationships_from.remove(rel)
+        with rel.reltype._lock:
+            if rel in rel.reltype.relationships_as_type:
+                rel.reltype.relationships_as_type.remove(rel)
         if rel in transient_relationships:
             transient_relationships.remove(rel)
 
@@ -113,12 +122,14 @@ class Thing:
     @property
     def Parents(self) -> List["Thing"]:
         has_child = ThingLabels.get_thing("has-child")
-        return [r.source for r in self.relationships_from if r.reltype == has_child and r.target is self]
+        with self._lock:
+            return [r.source for r in self.relationships_from if r.reltype == has_child and r.target is self]
 
     @property
     def Children(self) -> List["Thing"]:
         has_child = ThingLabels.get_thing("has-child")
-        return [r.target for r in self.relationships if r.reltype == has_child and r.target is not None]
+        with self._lock:
+            return [r.target for r in self.relationships if r.reltype == has_child and r.target is not None]
 
     @property
     def ChildrenWithSubclasses(self) -> List["Thing"]:
@@ -173,22 +184,40 @@ class Thing:
     # ------------------------------------------------------------------
     def get_attributes(self) -> List["Thing"]:
         ret: List[Thing] = []
-        for r in self.relationships:
-            if r.reltype.Label.lower() in {"hasattribute", "is"} and r.target:
-                ret.append(r.target)
+        with self._lock:
+            for r in self.relationships:
+                if r.reltype.Label.lower() in {"hasattribute", "is", "hasproperty", "allows"} and r.target:
+                    ret.append(r.target)
         return ret
 
-    def set_attribute(self, attribute_value: "Thing") -> Relationship:
-        reltype = ThingLabels.get_thing("hasAttribute")
+    def set_attribute(self, attribute_value: "Thing", rel_label: str = "hasAttribute") -> Relationship:
+        reltype = ThingLabels.get_thing(rel_label)
         if reltype is None:
-            reltype = Thing("hasAttribute")
+            reltype = Thing(rel_label)
         return self.add_relationship(reltype, attribute_value)
 
+    def set_property(self, property_value: "Thing") -> Relationship:
+        return self.set_attribute(property_value, "hasProperty")
+
+    def set_allows(self, thing: "Thing") -> Relationship:
+        return self.set_attribute(thing, "allows")
+
     def has_property(self, t: "Thing") -> bool:
-        for r in self.relationships:
-            if r.reltype.Label.lower() == "hasproperty" and r.target is t:
-                return True
+        with self._lock:
+            for r in self.relationships:
+                if r.reltype.Label.lower() == "hasproperty" and r.target is t:
+                    return True
         for parent in self.Parents:
             if parent.has_property(t):
+                return True
+        return False
+
+    def allows(self, t: "Thing") -> bool:
+        with self._lock:
+            for r in self.relationships:
+                if r.reltype.Label.lower() == "allows" and r.target is t:
+                    return True
+        for parent in self.Parents:
+            if parent.allows(t):
                 return True
         return False

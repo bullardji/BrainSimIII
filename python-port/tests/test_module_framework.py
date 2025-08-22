@@ -12,6 +12,14 @@ from uks import UKS, ThingLabels, transient_relationships
 class DummyModule(ModuleBase):
     def initialize(self) -> None:
         self.counter = 0
+        self.started = False
+        self.stopped = False
+
+    def on_start(self) -> None:
+        self.started = True
+
+    def on_stop(self) -> None:
+        self.stopped = True
 
     def pre_step(self) -> None:
         self.counter += 1
@@ -34,6 +42,7 @@ def test_module_handler_activation_and_fire():
     handler.register(DummyModule, "dummy")
     module = handler.activate("DummyModule")
     assert module.initialized
+    assert module.started
     assert module.counter == 0
 
     handler.fire_modules()
@@ -42,6 +51,7 @@ def test_module_handler_activation_and_fire():
 
     handler.deactivate(module.label)
     assert handler.active_modules == []
+    assert module.stopped
 
     # Test serialization
     module = DummyModule()

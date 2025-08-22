@@ -8,11 +8,13 @@ stored case-insensitively but the original casing is preserved on the
 `Thing` instances themselves.
 """
 
+import threading
 from typing import Dict, Optional
 
 
 class ThingLabels:
     _labels: Dict[str, "Thing"] = {}
+    _lock = threading.Lock()
 
     @classmethod
     def add_thing_label(cls, label: str, thing: "Thing") -> str:
@@ -30,7 +32,8 @@ class ThingLabels:
         # Remove any previous label associated with this Thing
         old = getattr(thing, "_label", "")
         if old:
-            cls._labels.pop(old.lower(), None)
+            with cls._lock:
+                cls._labels.pop(old.lower(), None)
 
         base = label
         cur = -1
@@ -41,21 +44,31 @@ class ThingLabels:
 
         while True:
             key = label.lower()
-            existing = cls._labels.get(key)
-            if existing is None or existing is thing:
-                cls._labels[key] = thing
-                return label
+            with cls._lock:
+                existing = cls._labels.get(key)
+                if existing is None or existing is thing:
+                    cls._labels[key] = thing
+                    return label
             cur += 1
             label = f"{base}{cur}"
 
     @classmethod
     def get_thing(cls, label: str) -> Optional["Thing"]:
-        return cls._labels.get(label.lower())
+        with cls._lock:
+            return cls._labels.get(label.lower())
 
     @classmethod
     def remove_thing_label(cls, label: str) -> None:
-        cls._labels.pop(label.lower(), None)
+        with cls._lock:
+            cls._labels.pop(label.lower(), None)
 
     @classmethod
     def clear_label_list(cls) -> None:
-        cls._labels.clear()
+        with cls._lock:
+            cls._labels.clear()
+
+    @classmethod
+    def labels(cls) -> Dict[str, "Thing"]:
+        """Return a copy of the current label mapping."""
+        with cls._lock:
+            return dict(cls._labels)

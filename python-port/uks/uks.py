@@ -35,8 +35,8 @@ class UKS:
 
         # Start background thread for TTL processing
         self._stop_event = threading.Event()
-        thread = threading.Thread(target=self._timer_loop, daemon=True)
-        thread.start()
+        self._thread = threading.Thread(target=self._timer_loop, daemon=True)
+        self._thread.start()
 
     # ------------------------------------------------------------------
     # Initialization helpers
@@ -246,6 +246,8 @@ class UKS:
         target: Optional[str] = None,
         min_weight: float = 0.0,
         max_ttl: Optional[float] = None,
+        include_inherited: bool = False,
+        detect_conflicts: bool = False,
     ) -> List[Relationship]:
         """Return relationships matching the given filters."""
 
@@ -254,7 +256,8 @@ class UKS:
         for t in self.UKSList:
             if source and t.Label != source:
                 continue
-            for r in t.relationships:
+            rels = self.get_all_relationships([t], False) if include_inherited else t.relationships
+            for r in rels:
                 if reltype and r.reltype.Label != reltype:
                     continue
                 if target and (r.target is None or r.target.Label != target):
@@ -266,6 +269,20 @@ class UKS:
                     if remaining > max_ttl:
                         continue
                 results.append(r)
+
+        if detect_conflicts:
+            conflicts: List[Relationship] = []
+            seen: Dict[Thing, Relationship] = {}
+            for r in results:
+                other = seen.get(r.reltype)
+                if other and other.target is not r.target:
+                    if other not in conflicts:
+                        conflicts.append(other)
+                    conflicts.append(r)
+                else:
+                    seen[r.reltype] = r
+            return conflicts
+
         return results
 
     # ------------------------------------------------------------------
@@ -289,3 +306,11 @@ class UKS:
         if t is None:
             t = self.add_thing(param, self.labeled("Object"))
         return t
+
+    # ------------------------------------------------------------------
+    # Shutdown
+    # ------------------------------------------------------------------
+    def shutdown(self) -> None:
+        """Stop the background TTL pruning thread."""
+        self._stop_event.set()
+        self._thread.join()

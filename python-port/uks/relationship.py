@@ -26,3 +26,15 @@ class Relationship:
     def touch(self) -> None:
         """Update the ``last_used`` timestamp to now."""
         self.last_used = datetime.now()
+
+    def __hash__(self) -> int:  # pragma: no cover - trivial
+        return hash((self.source, self.reltype, self.target))
+
+    def __eq__(self, other: object) -> bool:  # pragma: no cover - trivial
+        if not isinstance(other, Relationship):
+            return NotImplemented
+        return (
+            self.source is other.source
+            and self.reltype is other.reltype
+            and self.target is other.target
+        )
