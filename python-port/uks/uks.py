@@ -258,6 +258,7 @@ class UKS:
                 continue
             rels = self.get_all_relationships([t], False) if include_inherited else t.relationships
             for r in rels:
+
                 if reltype and r.reltype.Label != reltype:
                     continue
                 if target and (r.target is None or r.target.Label != target):
@@ -269,7 +270,6 @@ class UKS:
                     if remaining > max_ttl:
                         continue
                 results.append(r)
-
         if detect_conflicts:
             conflicts: List[Relationship] = []
             seen: Dict[Thing, Relationship] = {}
@@ -282,7 +282,6 @@ class UKS:
                 else:
                     seen[r.reltype] = r
             return conflicts
-
         return results
 
     # ------------------------------------------------------------------

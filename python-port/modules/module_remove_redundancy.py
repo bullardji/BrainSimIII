@@ -24,6 +24,7 @@ class ModuleRemoveRedundancy(ModuleBase):
         self._timer: threading.Timer | None = None
         self.interval: float = 10.0
 
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -38,7 +39,7 @@ class ModuleRemoveRedundancy(ModuleBase):
             self._timer.cancel()
             self._timer = None
         super().on_stop()
-
+        
     def fire(self) -> None:
         # The original module performs all work on a timer; ``fire`` merely
         # ensures initialization and updates the dialog (not implemented here).
@@ -50,6 +51,7 @@ class ModuleRemoveRedundancy(ModuleBase):
     def _setup(self) -> None:
         if self._timer is None:
             self._timer = threading.Timer(self.interval, self._same_thread_callback)
+
             self._timer.daemon = True
             self._timer.start()
 
@@ -75,6 +77,7 @@ class ModuleRemoveRedundancy(ModuleBase):
         for parent in t.Parents:
             rels_with_inheritance = self.the_uks.get_all_relationships([parent], False)
             for r in list(t.relationships):
+
                 match = next(
                     (
                         x
