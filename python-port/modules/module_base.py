@@ -9,6 +9,8 @@ allow fine‑grained control over execution.
 """
 from __future__ import annotations
 
+import threading
+
 from typing import Any, Dict, Optional
 
 from uks import UKS
@@ -22,14 +24,33 @@ class ModuleBase:
         self.is_enabled: bool = True
         self.initialized: bool = False
         self.the_uks: Optional[UKS] = None
+        # Track background worker threads so ``reset`` or ``on_stop`` can
+        # perform a graceful shutdown.  Modules can spawn workers via
+        # :meth:`start_worker`.
+        self._workers: list[threading.Thread] = []
+
 
     # -- lifecycle -----------------------------------------------------
     def initialize(self) -> None:  # pragma: no cover - to be overridden
         """Perform one-time module setup."""
         raise NotImplementedError
 
+    def on_start(self) -> None:
+        """Hook executed when the module is activated."""
+
+    def on_stop(self) -> None:
+        """Hook executed when the module is deactivated.
+
+        The default implementation joins all worker threads started via
+        :meth:`start_worker`.
+        """
+        for t in list(self._workers):
+            t.join(timeout=0.1)
+        self._workers.clear()
+
     def reset(self) -> None:
         """Reset module state for a fresh run."""
+        self.on_stop()
         self.initialized = False
 
     def pre_step(self) -> None:
@@ -68,3 +89,10 @@ class ModuleBase:
     def set_uks(self, uks: UKS) -> None:
         """Assign the shared :class:`UKS` instance."""
         self.the_uks = uks
+    # -- worker utilities ---------------------------------------------
+    def start_worker(self, target, *args, daemon: bool = True, **kwargs) -> threading.Thread:
+        """Start a background thread and track it for cleanup."""
+        thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=daemon)
+        thread.start()
+        self._workers.append(thread)
+        return thread

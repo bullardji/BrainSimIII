@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import datetime, os, math
+import datetime, os, math, threading
+
 from typing import Callable, Iterable, List, Optional, Tuple, TypeVar
 try:
     from .angle import Angle
@@ -116,9 +117,19 @@ def get_camera_tilt_from_annotated_image_file_name(filename: str) -> Angle:
 
 
 _trackid = 1000
+_trackid_lock = threading.Lock()
 
 
 def new_track_id() -> str:
+    """Return a unique tracking id as a zero-padded string."""
     global _trackid
-    _trackid += 1
-    return f"{_trackid:####}"
+    with _trackid_lock:
+        _trackid += 1
+        return f"{_trackid:04d}"
+
+
+def reset_track_id(value: int = 1000) -> None:
+    """Reset the internal track id counter (for testing)."""
+    global _trackid
+    with _trackid_lock:
+        _trackid = int(value)

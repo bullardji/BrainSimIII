@@ -24,13 +24,23 @@ class ModuleAddCounts(ModuleBase):
         self.is_enabled: bool = False
         self.debug_string = "Initialized\n"
         self._timer: threading.Timer | None = None
+        self.interval: float = 10.0
+
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
     def initialize(self) -> None:
+        pass
+
+    def on_start(self) -> None:
         self._setup()
 
+    def on_stop(self) -> None:
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        super().on_stop()
     def fire(self) -> None:
         if not self.initialized:
             self.initialize()
@@ -39,7 +49,8 @@ class ModuleAddCounts(ModuleBase):
     # ------------------------------------------------------------------
     def _setup(self) -> None:
         if self._timer is None:
-            self._timer = threading.Timer(10.0, self._same_thread_callback)
+            self._timer = threading.Timer(self.interval, self._same_thread_callback)
+
             self._timer.daemon = True
             self._timer.start()
 
@@ -110,3 +121,9 @@ class ModuleAddCounts(ModuleBase):
         if self._timer is not None:
             self._timer.cancel()
             self._timer = None
+
+    def get_parameters(self) -> dict:
+        return {"interval": self.interval}
+
+    def set_parameters(self, params: dict) -> None:
+        self.interval = float(params.get("interval", self.interval))

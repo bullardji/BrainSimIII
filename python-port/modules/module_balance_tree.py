@@ -20,6 +20,7 @@ class ModuleBalanceTree(ModuleBase):
     def __init__(self, label: Optional[str] = None) -> None:
         super().__init__(label)
         self.max_children: int = 6
+        self.interval: float = 10.0
         self._timer: Optional[threading.Timer] = None
         self.debug_string = "Initialized\n"
 
@@ -27,7 +28,16 @@ class ModuleBalanceTree(ModuleBase):
     # Lifecycle
     # ------------------------------------------------------------------
     def initialize(self) -> None:
+        pass
+
+    def on_start(self) -> None:
         self._setup_timer()
+
+    def on_stop(self) -> None:
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        super().on_stop()
 
     def fire(self) -> None:  # timer driven
         if not self.initialized:
@@ -35,7 +45,8 @@ class ModuleBalanceTree(ModuleBase):
 
     def _setup_timer(self) -> None:
         if self._timer is None:
-            self._timer = threading.Timer(10.0, self._callback)
+            self._timer = threading.Timer(self.interval, self._callback)
+
             self._timer.daemon = True
             self._timer.start()
 
@@ -73,7 +84,9 @@ class ModuleBalanceTree(ModuleBase):
     # Parameters
     # ------------------------------------------------------------------
     def get_parameters(self) -> dict:
-        return {"max_children": self.max_children}
+        return {"max_children": self.max_children, "interval": self.interval}
 
     def set_parameters(self, params: dict) -> None:
         self.max_children = int(params.get("max_children", self.max_children))
+        self.interval = float(params.get("interval", self.interval))
+        return {"max_children": self.max_children}

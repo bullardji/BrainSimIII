@@ -1,6 +1,7 @@
 import sys
 import math
-import sys
+import threading
+
 from pathlib import Path
 
 
@@ -55,3 +56,32 @@ def test_find_first_and_find_all():
 
 def test_rad():
     assert math.isclose(utils.rad(180), math.pi)
+
+def test_angle_comparisons_and_hashing():
+    a = Angle.from_degrees(45)
+    b = Angle.from_degrees(90)
+    assert a < b
+    assert b > a
+    assert a == Angle.from_degrees(45)
+    # hashing and ordering
+    s = {a, Angle.from_degrees(45)}
+    assert len(s) == 1
+    assert list(sorted([b, a])) == [a, b]
+
+
+def test_new_track_id_thread_safe():
+    utils.reset_track_id()
+    ids: list[str] = []
+
+    def worker(count: int) -> None:
+        for _ in range(count):
+            ids.append(utils.new_track_id())
+
+    threads = [threading.Thread(target=worker, args=(100,)) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(ids) == 500
+    assert len(set(ids)) == 500

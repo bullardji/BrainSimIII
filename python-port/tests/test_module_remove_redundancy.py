@@ -16,9 +16,12 @@ def test_module_remove_redundancy_prunes_child_attributes():
     child = uks.get_or_add_thing("child")
     child.add_parent(parent)
     reltype = uks.get_or_add_thing("has-color")
-    color = uks.get_or_add_thing("red")
-    parent.add_relationship(reltype, color, weight=1.0)
-    child.add_relationship(reltype, color, weight=0.55)
+    color1 = uks.get_or_add_thing("red")
+    color2 = uks.get_or_add_thing("blue")
+    parent.add_relationship(reltype, color1, weight=1.0)
+    parent.add_relationship(reltype, color2, weight=1.0)
+    child.add_relationship(reltype, color1, weight=0.55)
+    child.add_relationship(reltype, color2, weight=0.55)
 
     mod = ModuleRemoveRedundancy()
     mod.set_uks(uks)
@@ -26,3 +29,4 @@ def test_module_remove_redundancy_prunes_child_attributes():
     mod.do_the_work()
 
     assert uks.get_relationship("child", "has-color", "red") is None
+    assert uks.get_relationship("child", "has-color", "blue") is None

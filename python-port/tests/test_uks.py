@@ -5,7 +5,8 @@ from pathlib import Path
 # Allow importing modules from the python-port directory
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from uks import UKS, Thing, ThingLabels, transient_relationships
+from uks import UKS, Thing, ThingLabels, transient_relationships, Relationship
+
 
 
 def test_parent_child_and_ancestors():
@@ -18,6 +19,8 @@ def test_parent_child_and_ancestors():
     assert child.Parents == [parent]
     assert parent.Children == [child]
     assert child.AncestorList() == [parent]
+    uks.shutdown()
+
 
 
 def test_transient_relationship_expiry():
@@ -33,6 +36,8 @@ def test_transient_relationship_expiry():
     uks.remove_expired_relationships()
     assert not transient_relationships
     assert not a.relationships
+    uks.shutdown()
+
 
 
 def test_add_statement_and_get_relationship():
@@ -44,6 +49,8 @@ def test_add_statement_and_get_relationship():
     assert rel is fetched
     rel2 = uks.add_statement("cat", "is-a", "animal")
     assert rel2 is rel
+    uks.shutdown()
+
 
 
 def test_persistence_and_query(tmp_path):
@@ -57,6 +64,24 @@ def test_persistence_and_query(tmp_path):
     uks2.load(str(path))
     rels = uks2.query(source="a", reltype="likes", min_weight=0.5)
     assert len(rels) == 1
+    uks.shutdown()
+    uks2.shutdown()
+
+
+def test_query_inheritance_and_conflicts():
+    ThingLabels.clear_label_list()
+    transient_relationships.clear()
+    uks = UKS()
+    parent = uks.get_or_add_thing("parent")
+    child = uks.get_or_add_thing("child")
+    child.add_parent(parent)
+    uks.add_relationship(parent, "prop", "A")
+    uks.add_relationship(child, "prop", "B")
+    inherited = uks.query(source="child", reltype="prop", include_inherited=True)
+    assert len(inherited) == 2
+    conflicts = uks.query(source="child", reltype="prop", include_inherited=True, detect_conflicts=True)
+    assert len(conflicts) == 2
+    uks.shutdown()
 
 
 def test_event_hooks_and_conflict_resolution():
@@ -77,6 +102,8 @@ def test_event_hooks_and_conflict_resolution():
     assert updated and rel.weight == 0.5
     uks.remove_relationship(rel)
     assert removed
+    uks.shutdown()
+
 
 
 def test_label_autoincrement():
@@ -89,3 +116,47 @@ def test_label_autoincrement():
     assert a.Label == "node"
     assert b.Label == "node0"
     assert c.Label == "node1"
+
+    uks.shutdown()
+
+
+def test_relationship_hash_and_labels_threadsafe():
+    ThingLabels.clear_label_list()
+    transient_relationships.clear()
+    uks = UKS()
+    a = uks.get_or_add_thing("a")
+    b = uks.get_or_add_thing("b")
+    rt = uks.get_or_add_thing("r")
+    r1 = Relationship(a, rt, b)
+    r2 = Relationship(a, rt, b)
+    s = {r1}
+    assert r2 in s and r1 == r2
+
+    # Thread-safe label assignment
+    import threading
+
+    def worker(idx: int) -> None:
+        uks.add_thing(f"T{idx}", None)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(ThingLabels.labels()) >= 10
+    uks.shutdown()
+
+
+def test_thing_attribute_helpers_extended():
+    ThingLabels.clear_label_list()
+    transient_relationships.clear()
+    uks = UKS()
+    t = uks.get_or_add_thing("t")
+    prop = uks.get_or_add_thing("prop")
+    allow = uks.get_or_add_thing("allow")
+    t.set_property(prop)
+    t.set_allows(allow)
+    attrs = t.get_attributes()
+    assert prop in attrs and allow in attrs
+    uks.shutdown()
+

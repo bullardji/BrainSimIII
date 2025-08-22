@@ -54,10 +54,15 @@ class ModuleHandler:
         module = reg.cls()
         module.set_uks(self.the_uks)
         module._ensure_initialized()
+        module.on_start()
+
         self.active_modules.append(module)
         return module
 
     def deactivate(self, label: str) -> None:
+        for m in list(self.active_modules):
+            if m.label == label:
+                m.on_stop()
         self.active_modules = [m for m in self.active_modules if m.label != label]
 
     # -- execution -----------------------------------------------------
@@ -88,4 +93,6 @@ class ModuleHandler:
             module.set_uks(self.the_uks)
             module._ensure_initialized()
             module.set_parameters(mdata.get("params", {}))
+            module.on_start()
+
             self.active_modules.append(module)
