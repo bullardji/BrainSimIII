@@ -41,6 +41,16 @@ except Exception:  # pragma: no cover - optional dependency
 UDP_RECEIVE_PORT = 3333
 UDP_SEND_PORT = 3333
 
+TCP_PORT = 54321
+SUBSCRIPTION_PORT = 9090
+AUDIO_PORT = 666
+
+# globals used for device pairing similar to the C# Network.cs helper
+pod_paired: bool = False
+the_tcp_stream_in: Optional[socket.socket] = None
+the_tcp_stream_out: Optional[socket.socket] = None
+_broadcast_address: Optional[str] = None
+
 
 def _create_udp_socket(broadcast: bool = False) -> socket.socket:
     """Create a UDP socket optionally configured for broadcast."""

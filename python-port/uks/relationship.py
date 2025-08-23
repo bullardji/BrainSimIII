@@ -65,3 +65,29 @@ class Relationship:
             and self.target is other.target
         )
 
+
+@dataclass
+class QueryRelationship:
+    """A relationship returned from UKS queries with additional query metadata."""
+    
+    source: "Thing"
+    reltype: "Thing"  
+    target: Optional["Thing"]
+    weight: float = 1.0
+    value: float = 0.0
+    hits: int = 0
+    misses: int = 0
+    
+    @classmethod
+    def from_relationship(cls, rel: Relationship) -> "QueryRelationship":
+        """Create a QueryRelationship from a regular Relationship."""
+        return cls(
+            source=rel.source,
+            reltype=rel.reltype,
+            target=rel.target,
+            weight=rel.weight,
+            value=rel.value,
+            hits=rel.hits,
+            misses=rel.misses
+        )
+

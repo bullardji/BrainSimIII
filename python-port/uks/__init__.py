@@ -16,7 +16,7 @@ __all__ = [
     "Clause",
     "QueryRelationship",
     "ThingLabels",
-    "UKS",
+    "UKS", 
     "Statement",
     "transient_relationships",
 ]
