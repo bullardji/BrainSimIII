@@ -5,7 +5,7 @@ from pathlib import Path
 # Allow importing modules from the python-port directory
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from uks import UKS, Thing, ThingLabels, transient_relationships, Relationship
+from uks import UKS, Thing, ThingLabels, transient_relationships, Relationship, Statement
 
 
 def test_parent_child_and_ancestors():
@@ -152,4 +152,38 @@ def test_thing_attribute_helpers_extended():
     t.set_allows(allow)
     attrs = t.get_attributes()
     assert prop in attrs and allow in attrs
+    uks.shutdown()
+
+
+def test_statement_round_trip_and_merge(tmp_path):
+    ThingLabels.clear_label_list()
+    transient_relationships.clear()
+    uks = UKS()
+    stmt = Statement("a", "likes", "b", ttl=5, weight=0.3)
+    rel = stmt.to_relationship(uks)
+    assert rel.weight == 0.3
+    exported = uks.export_statements()
+    assert Statement.from_relationship(rel) in exported
+    path = tmp_path / "uks.json"
+    uks.save(str(path))
+
+    uks2 = UKS()
+    uks2.add_relationship("c", "likes", "d")
+    uks2.load(str(path), merge=True)
+    assert uks2.get_relationship("a", "likes", "b")
+    assert uks2.get_relationship("c", "likes", "d")
+    uks.shutdown()
+    uks2.shutdown()
+
+
+def test_query_regex():
+    ThingLabels.clear_label_list()
+    transient_relationships.clear()
+    uks = UKS()
+    uks.add_relationship("cat", "is-a", "animal")
+    uks.add_relationship("car", "is-a", "vehicle")
+    uks.add_relationship("dog", "is-a", "animal")
+    res = uks.query(source_regex="c.*", reltype="is-a")
+    labels = {r.source.Label for r in res}
+    assert labels == {"cat", "car"}
     uks.shutdown()

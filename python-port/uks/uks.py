@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import json
+import re
 import threading
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Iterable
 
 from .thing import Thing, transient_relationships
 from .relationship import Relationship
 from .thing_labels import ThingLabels
+from .statement import Statement
 
 
 class UKS:
@@ -198,42 +200,70 @@ class UKS:
     # Persistence
     # ------------------------------------------------------------------
     def save(self, path: str) -> None:
+        """Serialise the entire UKS to ``path``.
+
+        Data is stored as a JSON object containing the list of Things (label and
+        optional value) and a list of :class:`Statement` dictionaries representing
+        all relationships.  The format is intentionally simple and designed for
+        compatibility with the original C# ``UKS.File`` helpers.
+        """
+
         data = {
-            "things": [
-                {"label": t.Label, "value": t.V}
-                for t in self.UKSList
-            ],
-            "relationships": [
-                {
-                    "source": r.source.Label,
-                    "reltype": r.reltype.Label,
-                    "target": r.target.Label if r.target else None,
-                    "weight": r.weight,
-                    "ttl": None if r.time_to_live == timedelta.max else r.time_to_live.total_seconds(),
-                }
-                for t in self.UKSList for r in t.relationships
-            ],
+            "things": [{"label": t.Label, "value": t.V} for t in self.UKSList],
+            "statements": [s.to_dict() for s in self.export_statements()],
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f)
 
-    def load(self, path: str) -> None:
+    def load(self, path: str, merge: bool = False) -> None:
+        """Load UKS content from ``path``.
+
+        When ``merge`` is ``False`` (the default) the current store is cleared
+        before loading.  When ``True`` the loaded statements are merged into the
+        existing store, leaving previously defined Things and relationships
+        intact.
+        """
+
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        ThingLabels.clear_label_list()
-        transient_relationships.clear()
-        self.UKSList = []
-        mapping: Dict[str, Thing] = {}
+
+        if not merge:
+            ThingLabels.clear_label_list()
+            transient_relationships.clear()
+            self.UKSList = []
+
+        mapping: Dict[str, Thing] = {t.Label: t for t in self.UKSList}
         for td in data.get("things", []):
-            t = Thing(td["label"], td.get("value"))
-            self.UKSList.append(t)
-            mapping[t.Label] = t
-        for rd in data.get("relationships", []):
-            s = mapping[rd["source"]]
-            rt = mapping[rd["reltype"]]
-            tgt = mapping.get(rd["target"]) if rd.get("target") else None
-            ttl = rd.get("ttl")
-            s.add_relationship(rt, tgt, ttl, rd.get("weight", 1.0))
+            if td["label"] not in mapping:
+                t = Thing(td["label"], td.get("value"))
+                self.UKSList.append(t)
+                mapping[t.Label] = t
+
+        statements = [Statement.from_dict(sd) for sd in data.get("statements", [])]
+        self.load_statements(statements)
+
+    # ------------------------------------------------------------------
+    # Statement helpers
+    # ------------------------------------------------------------------
+    def export_statements(self) -> List[Statement]:
+        """Return all relationships as :class:`Statement` objects."""
+
+        stmts: List[Statement] = []
+        for thing in self.UKSList:
+            for rel in thing.relationships:
+                stmts.append(Statement.from_relationship(rel))
+        return stmts
+
+    def load_statements(self, statements: Iterable[Statement]) -> None:
+        """Materialise *statements* into this UKS."""
+
+        for stmt in statements:
+            stmt.to_relationship(self)
+
+    def remove_statement(self, source: str | Thing, reltype: str | Thing, target: Optional[str | Thing]) -> None:
+        rel = self.get_relationship(source, reltype, target)
+        if rel is not None:
+            self.remove_relationship(rel)
 
     # ------------------------------------------------------------------
     # Query API
@@ -244,6 +274,9 @@ class UKS:
         source: Optional[str] = None,
         reltype: Optional[str] = None,
         target: Optional[str] = None,
+        source_regex: Optional[str] = None,
+        reltype_regex: Optional[str] = None,
+        target_regex: Optional[str] = None,
         min_weight: float = 0.0,
         max_ttl: Optional[float] = None,
         include_inherited: bool = False,
@@ -253,14 +286,24 @@ class UKS:
 
         now = datetime.now()
         results: List[Relationship] = []
+        s_re = re.compile(source_regex) if source_regex else None
+        rt_re = re.compile(reltype_regex) if reltype_regex else None
+        tgt_re = re.compile(target_regex) if target_regex else None
+
         for t in self.UKSList:
             if source and t.Label != source:
+                continue
+            if s_re and not s_re.fullmatch(t.Label):
                 continue
             rels = self.get_all_relationships([t], False) if include_inherited else t.relationships
             for r in rels:
                 if reltype and r.reltype.Label != reltype:
                     continue
+                if rt_re and not rt_re.fullmatch(r.reltype.Label):
+                    continue
                 if target and (r.target is None or r.target.Label != target):
+                    continue
+                if tgt_re and (r.target is None or not tgt_re.fullmatch(r.target.Label)):
                     continue
                 if r.weight < min_weight:
                     continue
