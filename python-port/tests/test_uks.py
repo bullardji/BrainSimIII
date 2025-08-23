@@ -8,6 +8,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from uks import UKS, Thing, ThingLabels, transient_relationships, Relationship, Statement
 
 
+
 def test_parent_child_and_ancestors():
     ThingLabels.clear_label_list()
     transient_relationships.clear()
@@ -19,7 +20,6 @@ def test_parent_child_and_ancestors():
     assert parent.Children == [child]
     assert child.AncestorList() == [parent]
     uks.shutdown()
-
 
 def test_transient_relationship_expiry():
     ThingLabels.clear_label_list()
@@ -36,7 +36,6 @@ def test_transient_relationship_expiry():
     assert not a.relationships
     uks.shutdown()
 
-
 def test_add_statement_and_get_relationship():
     ThingLabels.clear_label_list()
     transient_relationships.clear()
@@ -47,7 +46,6 @@ def test_add_statement_and_get_relationship():
     rel2 = uks.add_statement("cat", "is-a", "animal")
     assert rel2 is rel
     uks.shutdown()
-
 
 def test_persistence_and_query(tmp_path):
     ThingLabels.clear_label_list()
@@ -99,7 +97,6 @@ def test_event_hooks_and_conflict_resolution():
     uks.remove_relationship(rel)
     assert removed
     uks.shutdown()
-
 
 def test_label_autoincrement():
     ThingLabels.clear_label_list()
@@ -153,7 +150,6 @@ def test_thing_attribute_helpers_extended():
     attrs = t.get_attributes()
     assert prop in attrs and allow in attrs
     uks.shutdown()
-
 
 def test_statement_round_trip_and_merge(tmp_path):
     ThingLabels.clear_label_list()

@@ -56,7 +56,6 @@ def test_find_first_and_find_all():
 def test_rad():
     assert math.isclose(utils.rad(180), math.pi)
 
-
 def test_angle_comparisons_and_hashing():
     a = Angle.from_degrees(45)
     b = Angle.from_degrees(90)

@@ -19,7 +19,6 @@ def test_balance_tree_splits_children():
     assert all(len(n.Children) <= 2 for n in nodes)
     assert any(t.Label.startswith("root") and t is not root for t in nodes)
 
-
 def test_balance_tree_timer_reset():
     ThingLabels.clear_label_list()
     transient_relationships.clear()

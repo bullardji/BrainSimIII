@@ -88,3 +88,5 @@ class ModuleBalanceTree(ModuleBase):
     def set_parameters(self, params: dict) -> None:
         self.max_children = int(params.get("max_children", self.max_children))
         self.interval = float(params.get("interval", self.interval))
+        return {"max_children": self.max_children}
+

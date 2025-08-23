@@ -21,6 +21,7 @@ class Clause:
     clause: "Relationship"
 
 
+
 @dataclass
 class Relationship:
     source: "Thing"
@@ -64,7 +65,6 @@ class Relationship:
             and self.target is other.target
         )
 
-
 @dataclass
 class QueryRelationship(Relationship):
     """Relationship wrapper returned from queries with property lists."""
@@ -83,3 +83,4 @@ class QueryRelationship(Relationship):
         qr.clauses_from = list(rel.clauses_from)
         qr.created = rel.created
         return qr
+

@@ -72,3 +72,4 @@ class ThingLabels:
         """Return a copy of the current label mapping."""
         with cls._lock:
             return dict(cls._labels)
+

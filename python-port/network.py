@@ -32,6 +32,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
+
 try:  # optional vectorised maths
     import numpy as np  # type: ignore
     _HAVE_NUMPY = True
@@ -40,7 +41,6 @@ except Exception:  # pragma: no cover - optional dependency
 
 UDP_RECEIVE_PORT = 3333
 UDP_SEND_PORT = 3333
-
 TCP_PORT = 54321
 SUBSCRIPTION_PORT = 9090
 AUDIO_PORT = 666
@@ -327,6 +327,7 @@ class Network:
         self.time: float = 0.0
         self._dt: float = 1.0
         self.tick_rate: float = 1.0
+
         self.profiler: Optional[Callable[[float], None]] = None
 
     # -- construction -------------------------------------------------
@@ -395,6 +396,7 @@ class Network:
         self._synapses.append(syn)
         return syn
 
+
     def disconnect(self, pre: str, post: str) -> None:
         """Remove the synapse from ``pre`` to ``post`` if present."""
 
@@ -426,7 +428,7 @@ class Network:
             self.layers.clear()
             self._synapses.clear()
             self.time = 0.0
-
+            
     # -- runtime ------------------------------------------------------
     def set_input(self, neuron_id: str, value: float) -> None:
         """Directly set the output value of ``neuron_id``."""

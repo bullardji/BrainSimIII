@@ -38,7 +38,7 @@ class ModuleRemoveRedundancy(ModuleBase):
             self._timer.cancel()
             self._timer = None
         super().on_stop()
-
+        
     def fire(self) -> None:
         # The original module performs all work on a timer; ``fire`` merely
         # ensures initialization and updates the dialog (not implemented here).
