@@ -11,6 +11,7 @@ from .module_gpt_info import ModuleGPTInfo
 from .module_remove_redundancy import ModuleRemoveRedundancy
 from .module_stress_test import ModuleStressTest
 from .module_mine import ModuleMine
+from .module_uks_clause import ModuleUKSClause
 
 __all__ = [
     "ModuleBase",
@@ -25,4 +26,5 @@ __all__ = [
     "ModuleRemoveRedundancy",
     "ModuleStressTest",
     "ModuleMine",
+    "ModuleUKSClause",
 ]
