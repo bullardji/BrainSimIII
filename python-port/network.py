@@ -28,8 +28,10 @@ import socket
 import math
 import threading
 import time
+import json
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+
 
 try:  # optional vectorised maths
     import numpy as np  # type: ignore
@@ -39,6 +41,9 @@ except Exception:  # pragma: no cover - optional dependency
 
 UDP_RECEIVE_PORT = 3333
 UDP_SEND_PORT = 3333
+TCP_PORT = 54321
+SUBSCRIPTION_PORT = 9090
+AUDIO_PORT = 666
 
 
 def _create_udp_socket(broadcast: bool = False) -> socket.socket:
@@ -73,6 +78,142 @@ def udp_send(message: str, ip: str, port: int) -> None:
     data = message.encode("utf-8")
     with _create_udp_socket() as s:
         s.sendto(data, (ip, port))
+
+
+# ---------------------------------------------------------------------------
+# TCP helpers
+# ---------------------------------------------------------------------------
+
+
+def tcp_listen(port: int = TCP_PORT) -> socket.socket:
+    """Return a listening TCP socket bound to *port*.
+
+    The caller is responsible for closing the returned socket when finished.
+    """
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("", port))
+    server.listen(1)
+    return server
+
+
+def tcp_connect(host: str, port: int = TCP_PORT, *, timeout: float = 5.0) -> socket.socket:
+    """Connect to a TCP server and return the connected socket."""
+
+    client = socket.create_connection((host, port), timeout=timeout)
+    return client
+
+
+def tcp_accept(server: socket.socket, *, timeout: float = 15.0) -> socket.socket:
+    """Accept a connection from ``server`` and return the client socket."""
+
+    server.settimeout(timeout)
+    conn, _ = server.accept()
+    return conn
+
+
+def tcp_send(sock: socket.socket, message: str) -> None:
+    """Send *message* over the TCP connection ``sock``."""
+
+    data = (message + "\n").encode("utf-8")
+    sock.sendall(data)
+
+
+def tcp_receive(sock: socket.socket, bufsize: int = 4096) -> str:
+    """Receive a line of text from ``sock``."""
+
+    data = sock.recv(bufsize)
+    return data.decode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# HTTP helpers
+# ---------------------------------------------------------------------------
+
+
+def http_get(url: str, *, timeout: float = 2.0) -> str:
+    """Return the body of ``url`` via a simple HTTP GET request."""
+
+    from urllib.request import urlopen
+
+    with urlopen(url, timeout=timeout) as resp:
+        return resp.read().decode("utf-8")
+
+
+def http_post(url: str, data: str, *, timeout: float = 2.0) -> str:
+    """Send ``data`` to ``url`` via HTTP POST and return the response body."""
+
+    from urllib.request import Request, urlopen
+
+    req = Request(url, data=data.encode("utf-8"), method="POST")
+    with urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Audio UDP helpers
+# ---------------------------------------------------------------------------
+
+
+def audio_broadcast(payload: bytes, port: int = AUDIO_PORT, address: Optional[str] = None) -> None:
+    """Broadcast raw ``payload`` bytes over UDP on ``port``.
+
+    Used by audio modules which stream waveform samples.  ``address`` defaults to
+    the broadcast address but may be a specific IP for testing.
+    """
+
+    addr = address or "<broadcast>"
+    with _create_udp_socket(broadcast=address is None) as s:
+        s.sendto(payload, (addr, port))
+
+
+# ---------------------------------------------------------------------------
+# Subscription socket
+# ---------------------------------------------------------------------------
+
+
+class SubscriptionServer:
+    """Simple UDP based publish/subscribe message router.
+
+    Clients subscribe by sending the literal string ``"SUBSCRIBE"`` to the
+    server's port.  Subsequent datagrams sent to the server are forwarded to all
+    subscribed clients.
+    """
+
+    def __init__(self, port: int = SUBSCRIPTION_PORT) -> None:
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(("", port))
+        self.port = self.sock.getsockname()[1]
+        self.subscribers: set[tuple[str, int]] = set()
+        self._running = True
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+
+    def _loop(self) -> None:
+        while self._running:
+            try:
+                data, addr = self.sock.recvfrom(65535)
+            except OSError:
+                break
+            if data == b"SUBSCRIBE":
+                self.subscribers.add(addr)
+            else:
+                for sub in list(self.subscribers):
+                    try:
+                        self.sock.sendto(data, sub)
+                    except OSError:
+                        self.subscribers.discard(sub)
+
+    def stop(self) -> None:
+        self._running = False
+        try:
+            # send dummy packet to wake recvfrom
+            self.sock.sendto(b"", ("127.0.0.1", self.port))
+        except OSError:
+            pass
+        self.sock.close()
+        self._thread.join()
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +326,8 @@ class Network:
         self._lock = threading.RLock()
         self.time: float = 0.0
         self._dt: float = 1.0
+        self.tick_rate: float = 1.0
+
         self.profiler: Optional[Callable[[float], None]] = None
 
     # -- construction -------------------------------------------------
@@ -253,6 +396,39 @@ class Network:
         self._synapses.append(syn)
         return syn
 
+
+    def disconnect(self, pre: str, post: str) -> None:
+        """Remove the synapse from ``pre`` to ``post`` if present."""
+
+        with self._lock:
+            self._incoming[post] = [s for s in self._incoming.get(post, []) if not (s.pre == pre and s.post == post)]
+            self._synapses = [s for s in self._synapses if not (s.pre == pre and s.post == post)]
+
+    def remove_neuron(self, neuron_id: str) -> None:
+        """Remove ``neuron_id`` and all connected synapses."""
+
+        if neuron_id not in self.neurons:
+            return
+        with self._lock:
+            del self.neurons[neuron_id]
+            del self._incoming[neuron_id]
+            for syn_list in self._incoming.values():
+                syn_list[:] = [s for s in syn_list if s.pre != neuron_id]
+            self._synapses = [s for s in self._synapses if s.pre != neuron_id and s.post != neuron_id]
+            for ids in self.layers.values():
+                if neuron_id in ids:
+                    ids.remove(neuron_id)
+
+    def clear(self) -> None:
+        """Remove all neurons and synapses, resetting time to zero."""
+
+        with self._lock:
+            self.neurons.clear()
+            self._incoming.clear()
+            self.layers.clear()
+            self._synapses.clear()
+            self.time = 0.0
+            
     # -- runtime ------------------------------------------------------
     def set_input(self, neuron_id: str, value: float) -> None:
         """Directly set the output value of ``neuron_id``."""
@@ -356,8 +532,9 @@ class Network:
         if self._running:
             return
 
-        self._dt = 1.0 / tick_rate
         with self._lock:
+            self.tick_rate = tick_rate
+            self._dt = 1.0 / tick_rate
             self._running = True
             self._paused = False
 
@@ -394,4 +571,95 @@ class Network:
         if self._thread is not None:
             self._thread.join()
             self._thread = None
+
+    def set_tick_rate(self, tick_rate: float) -> None:
+        """Change the tick rate used by the asynchronous update loop."""
+
+        with self._lock:
+            self.tick_rate = tick_rate
+            self._dt = 1.0 / tick_rate
+
+    # -- persistence -------------------------------------------------
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON‑serialisable representation of the network."""
+
+        return {
+            "time": self.time,
+            "neurons": [
+                {
+                    "id": nid,
+                    "value": n.value,
+                    "bias": n.bias,
+                    "activation": next(
+                        (name for name, fn in _ACTIVATIONS.items() if fn is n.activation),
+                        None,
+                    ),
+                    "layer": n.layer,
+                    "kind": n.kind,
+                    "spike_threshold": n.spike_threshold,
+                    "refractory": n.refractory,
+                    "last_spike": n.last_spike,
+                }
+                for nid, n in self.neurons.items()
+            ],
+            "synapses": [
+                {
+                    "pre": s.pre,
+                    "post": s.post,
+                    "weight": s.weight,
+                    "learning_rate": s.learning_rate,
+                    "stdp_rate": s.stdp_rate,
+                    "stdp_tau": s.stdp_tau,
+                }
+                for s in self._synapses
+            ],
+        }
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        """Populate the network using data produced by :meth:`to_dict`."""
+
+        self.neurons.clear()
+        self._incoming.clear()
+        self.layers.clear()
+        self._synapses.clear()
+
+        self.time = data.get("time", 0.0)
+        for nd in data.get("neurons", []):
+            activation = nd.get("activation")
+            act = activation if activation in _ACTIVATIONS else None
+            self.add_neuron(
+                nd["id"],
+                bias=nd.get("bias", 0.0),
+                activation=act,
+                layer=nd.get("layer", 0),
+                kind=nd.get("kind", "excitatory"),
+                spike_threshold=nd.get("spike_threshold", 1.0),
+                refractory=nd.get("refractory", 0.0),
+            )
+            neuron = self.neurons[nd["id"]]
+            neuron.value = nd.get("value", 0.0)
+            neuron.last_spike = nd.get("last_spike")
+
+        for sd in data.get("synapses", []):
+            self.connect(
+                sd["pre"],
+                sd["post"],
+                weight=sd.get("weight", 1.0),
+                learning_rate=sd.get("learning_rate", 0.0),
+                stdp_rate=sd.get("stdp_rate", 0.0),
+                stdp_tau=sd.get("stdp_tau", 1.0),
+            )
+
+    def save(self, path: str) -> None:
+        """Serialise the network to *path* in JSON format."""
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f)
+
+    def load(self, path: str) -> None:
+        """Load network state previously written by :meth:`save`."""
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.from_dict(data)
 

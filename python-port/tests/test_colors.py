@@ -1,7 +1,5 @@
 import sys
 from pathlib import Path
-import sys
-from pathlib import Path
 
 # Allow importing modules from the python-port directory
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -16,8 +14,12 @@ from colors import (
 
 def test_color_from_name_and_validation():
     assert color_from_name("red") == (255, 0, 0)
+    assert color_from_name("Chartreuse") == (127, 255, 0)
+    assert color_from_name("SPRING GREEN") == (0, 255, 127)
     assert color_from_name("unknown") == (111, 111, 111)
-    assert is_valid_color_name("Red")
+    # validation is case-insensitive
+    assert is_valid_color_name("blue")
+    assert is_valid_color_name("Blue")
     assert not is_valid_color_name("unknown")
 
 

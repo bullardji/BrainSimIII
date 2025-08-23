@@ -152,3 +152,64 @@ def test_spiking_neuron_with_refractory():
     net.set_input("input", 1.0)
     net.step(0.1)
     assert net.neurons["spike"].value == 1.0
+
+
+def test_network_save_and_load(tmp_path):
+    net = Network()
+    net.add_neuron("a", bias=0.1)
+    net.add_neuron("b", layer=1)
+    net.connect("a", "b", weight=0.5, learning_rate=0.05)
+    net.set_input("a", 1.0)
+    net.step()
+    path = tmp_path / "net.json"
+    net.save(path)
+    net.step()
+    expected = net.neurons["b"].value
+
+    net2 = Network()
+    net2.load(path)
+    assert net2.time == pytest.approx(net.time - 1.0)  # time before extra step
+    assert net2.neurons["a"].bias == pytest.approx(0.1)
+    assert net2.neurons["a"].value == pytest.approx(1.0)
+    assert net2._incoming["b"][0].weight == pytest.approx(0.525)
+    net2.step()
+    assert net2.neurons["b"].value == pytest.approx(expected)
+
+
+def test_disconnect_and_remove():
+    net = Network()
+    net.add_neuron("a")
+    net.add_neuron("b")
+    net.connect("a", "b", 1.0)
+    net.disconnect("a", "b")
+    assert net._incoming["b"] == []
+    net.connect("a", "b", 1.0)
+    net.remove_neuron("a")
+    assert "a" not in net.neurons
+    assert net._incoming["b"] == []
+
+
+def test_tick_rate_change():
+    net = Network()
+    net.add_neuron("a")
+    net.run(tick_rate=20)
+    try:
+        time.sleep(0.11)
+        net.set_tick_rate(100)
+        time.sleep(0.05)
+    finally:
+        net.stop()
+    # Allow generous tolerance due to scheduling jitter
+    assert 0.12 <= net.time <= 0.18
+
+
+def test_clear_resets_state():
+    net = Network()
+    net.add_neuron("a")
+    net.add_neuron("b")
+    net.connect("a", "b")
+    net.step()
+    assert net.time > 0
+    net.clear()
+    assert net.neurons == {}
+    assert net.time == 0.0

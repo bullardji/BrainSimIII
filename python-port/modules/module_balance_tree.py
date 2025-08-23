@@ -46,7 +46,6 @@ class ModuleBalanceTree(ModuleBase):
     def _setup_timer(self) -> None:
         if self._timer is None:
             self._timer = threading.Timer(self.interval, self._callback)
-
             self._timer.daemon = True
             self._timer.start()
 
@@ -90,3 +89,4 @@ class ModuleBalanceTree(ModuleBase):
         self.max_children = int(params.get("max_children", self.max_children))
         self.interval = float(params.get("interval", self.interval))
         return {"max_children": self.max_children}
+

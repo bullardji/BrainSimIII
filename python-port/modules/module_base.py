@@ -10,7 +10,6 @@ allow fine‑grained control over execution.
 from __future__ import annotations
 
 import threading
-
 from typing import Any, Dict, Optional
 
 from uks import UKS
@@ -28,7 +27,6 @@ class ModuleBase:
         # perform a graceful shutdown.  Modules can spawn workers via
         # :meth:`start_worker`.
         self._workers: list[threading.Thread] = []
-
 
     # -- lifecycle -----------------------------------------------------
     def initialize(self) -> None:  # pragma: no cover - to be overridden
@@ -89,6 +87,7 @@ class ModuleBase:
     def set_uks(self, uks: UKS) -> None:
         """Assign the shared :class:`UKS` instance."""
         self.the_uks = uks
+
     # -- worker utilities ---------------------------------------------
     def start_worker(self, target, *args, daemon: bool = True, **kwargs) -> threading.Thread:
         """Start a background thread and track it for cleanup."""
@@ -96,3 +95,4 @@ class ModuleBase:
         thread.start()
         self._workers.append(thread)
         return thread
+

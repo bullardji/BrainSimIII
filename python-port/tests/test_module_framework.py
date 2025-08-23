@@ -43,7 +43,6 @@ def test_module_handler_activation_and_fire():
     module = handler.activate("DummyModule")
     assert module.initialized
     assert module.started
-
     assert module.counter == 0
 
     handler.fire_modules()
@@ -53,7 +52,6 @@ def test_module_handler_activation_and_fire():
     handler.deactivate(module.label)
     assert handler.active_modules == []
     assert module.stopped
-
 
     # Test serialization
     module = DummyModule()

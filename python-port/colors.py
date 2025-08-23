@@ -67,21 +67,24 @@ _COLOR_MAP: Dict[str, Tuple[int, int, int]] = {
     "black": (0, 0, 0),
     "white": (255, 255, 255),
     "red": (255, 0, 0),
-    "lime": (0, 255, 0),
-    "blue": (0, 0, 255),
-    "yellow": (255, 255, 0),
-    "cyan": (0, 255, 255),
-    "magenta": (255, 0, 255),
     "orange": (255, 158, 0),
+    "yellow": (255, 255, 0),
+    "chartreuse": (127, 255, 0),
+    "lime": (0, 255, 0),
+    "spring green": (0, 255, 127),
+    "green": (0, 128, 0),
+    "teal": (0, 128, 128),
+    "cyan": (0, 255, 255),
+    "azure": (0, 127, 255),
+    "blue": (0, 0, 255),
+    "magenta": (255, 0, 255),
+    "purple": (128, 0, 128),
+    "rose": (255, 0, 127),
     "silver": (192, 192, 192),
     "gray": (128, 128, 128),
     "maroon": (128, 0, 0),
     "olive": (128, 128, 0),
-    "green": (0, 128, 0),
-    "purple": (128, 0, 128),
-    "teal": (0, 128, 128),
     "navy": (0, 0, 128),
-    "azure": (0, 127, 255),
 }
 
 
@@ -95,30 +98,14 @@ def color_from_name(color_name: str) -> Tuple[int, int, int]:
     return _COLOR_MAP.get(color_name.lower(), (111, 111, 111))
 
 
-_VALID_COLOR_NAMES: List[str] = [
-    "Red",
-    "Orange",
-    "Yellow",
-    "Chartreuse",
-    "Green",
-    "Spring Green",
-    "Cyan",
-    "Azure",
-    "Blue",
-    "Magenta",
-    "Rose",
-    "Black",
-    "White",
-    "Silver",
-    "Gray",
-    "Maroon",
-    "Olive",
-    "Purple",
-]
+_VALID_COLOR_NAMES: List[str] = [name.title() for name in _COLOR_MAP.keys()]
 
 
 def is_valid_color_name(color_name: str) -> bool:
-    return color_name in _VALID_COLOR_NAMES
+    """Return ``True`` if ``color_name`` is known regardless of case."""
+    if not color_name:
+        return False
+    return color_name.lower() in _COLOR_MAP
 
 
 def get_color_name_from_hsl(hsl: HSLColor) -> str:

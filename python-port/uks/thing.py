@@ -3,7 +3,6 @@ from __future__ import annotations
 """Thing class representing nodes in the Universal Knowledge Store."""
 
 import threading
-
 from datetime import timedelta
 from typing import List, Optional
 
@@ -85,7 +84,6 @@ class Thing:
                 target.relationships_from.append(rel)
         with reltype._lock:
             reltype.relationships_as_type.append(rel)
-
         if ttl is not None:
             transient_relationships.append(rel)
         return rel
@@ -126,7 +124,6 @@ class Thing:
         has_child = ThingLabels.get_thing("has-child")
         with self._lock:
             return [r.source for r in self.relationships_from if r.reltype == has_child and r.target is self]
-
 
     @property
     def Children(self) -> List["Thing"]:

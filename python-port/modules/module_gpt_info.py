@@ -13,18 +13,24 @@ import json
 from typing import Optional
 
 from .module_base import ModuleBase
+from gpt import GPTClient
+
 
 
 class ModuleGPTInfo(ModuleBase):
     Output: str = ""
 
-    def initialize(self) -> None:
-        # Validate that an API key is available up-front so calls fail fast
+    def initialize(self, local_model: Optional[str] = None) -> None:
+        """Initialise GPT client using either OpenAI API or a local model.
+
+        If ``OPENAI_API_KEY`` is available the remote API is used; otherwise
+        a local model specified via ``local_model`` is loaded using the
+        :class:`~python-port.gpt.GPTClient`.  This mirrors the flexibility of
+        the C# version which can operate offline with local models.
+        """
+
         api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY not set")
-        # No heavy initialisation is required beyond environment validation,
-        # but the flag indicates the module is ready for use
+        self._client = GPTClient(api_key=api_key, local_model=local_model)
 
     def fire(self) -> None:
         self._ensure_initialized()
@@ -33,23 +39,17 @@ class ModuleGPTInfo(ModuleBase):
     # ------------------------------------------------------------------
     @staticmethod
     def _call_openai(prompt: str, system: Optional[str] = None) -> str:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY not set")
-        import requests  # local import to avoid dependency when unused
+        # For compatibility with legacy callers, route through GPTClient
+        # which will select remote or local inference as configured.
+        client = getattr(ModuleGPTInfo, "_client", None)
+        if client is None:
+            api_key = os.getenv("OPENAI_API_KEY")
+            client = GPTClient(api_key=api_key)
+            ModuleGPTInfo._client = client  # cache for reuse
 
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": "gpt-3.5-turbo",
-            "messages": []
-        }
         if system:
-            payload["messages"].append({"role": "system", "content": system})
-        payload["messages"].append({"role": "user", "content": prompt})
-        resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, data=json.dumps(payload), timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"].strip()
+            prompt = f"{system}\n{prompt}"
+        return client.generate(prompt)
 
     @staticmethod
     def get_chatgpt_verify_parent_child(child: str, parent: str) -> str:

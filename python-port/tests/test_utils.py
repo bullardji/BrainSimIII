@@ -1,7 +1,6 @@
 import sys
 import math
 import threading
-
 from pathlib import Path
 
 

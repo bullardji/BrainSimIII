@@ -55,7 +55,6 @@ class ModuleHandler:
         module.set_uks(self.the_uks)
         module._ensure_initialized()
         module.on_start()
-
         self.active_modules.append(module)
         return module
 
@@ -94,5 +93,4 @@ class ModuleHandler:
             module._ensure_initialized()
             module.set_parameters(mdata.get("params", {}))
             module.on_start()
-
             self.active_modules.append(module)
