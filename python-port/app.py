@@ -23,6 +23,7 @@ from network import Network
 from uks.uks import UKS
 from uks.thing_labels import ThingLabels
 from xml_utils import save_xml, load_xml
+from gui.module_dialogs import DialogManager
 
 
 class BrainSimApp:
@@ -70,6 +71,16 @@ class BrainSimApp:
         sim_menu.add_command(label="Pause", command=self.network.pause)
         sim_menu.add_command(label="Stop", command=self.network.stop)
         menu.add_cascade(label="Simulation", menu=sim_menu)
+
+        # Modules menu
+        modules_menu = tk.Menu(menu, tearoff=0)
+        modules_menu.add_command(label="Configure Active Modules", command=self.configure_modules)
+        modules_menu.add_separator()
+        # Add individual module configuration options
+        modules_menu.add_command(label="Vision Module", command=lambda: self.configure_specific_module("ModuleVision"))
+        modules_menu.add_command(label="GPT Info Module", command=lambda: self.configure_specific_module("ModuleGPTInfo"))
+        modules_menu.add_command(label="Add Counts Module", command=lambda: self.configure_specific_module("ModuleAddCounts"))
+        menu.add_cascade(label="Modules", menu=modules_menu)
 
         self.root.config(menu=menu)
         self._refresh_mru_menu()
@@ -187,6 +198,112 @@ class BrainSimApp:
         self.module_handler.load_active(data.get("modules", []))
         self._project_file = Path(path)
         self._update_mru(self._project_file)
+
+    # ------------------------------------------------------------------
+    # Module configuration
+    # ------------------------------------------------------------------
+    def configure_modules(self) -> None:
+        """Show configuration dialogs for all active modules."""
+        active_modules = self.module_handler.active_modules
+        if not active_modules:
+            if messagebox:
+                messagebox.showinfo("No Active Modules", "No modules are currently active. Activate modules first.")
+            return
+            
+        # Create a module selection dialog
+        self._show_module_selection_dialog(active_modules)
+        
+    def configure_specific_module(self, module_class_name: str) -> None:
+        """Configure a specific module type."""
+        # Find if module is active
+        target_module = None
+        for module in self.module_handler.active_modules:
+            if module.__class__.__name__ == module_class_name:
+                target_module = module
+                break
+                
+        if not target_module:
+            # Try to activate the module
+            try:
+                target_module = self.module_handler.activate(module_class_name)
+            except Exception as e:
+                if messagebox:
+                    messagebox.showerror("Module Error", f"Could not activate {module_class_name}: {e}")
+                return
+                
+        # Show configuration dialog
+        try:
+            result = DialogManager.show_module_dialog(target_module, self.root)
+            if result:
+                print(f"Module {module_class_name} configured: {result}")
+        except Exception as e:
+            if messagebox:
+                messagebox.showerror("Configuration Error", f"Error configuring {module_class_name}: {e}")
+                
+    def _show_module_selection_dialog(self, modules: List) -> None:
+        """Show a dialog to select which module to configure."""
+        if not tk:
+            return
+            
+        # Create selection window
+        selection_window = tk.Toplevel(self.root)
+        selection_window.title("Configure Modules")
+        selection_window.geometry("400x300")
+        selection_window.transient(self.root)
+        selection_window.grab_set()
+        
+        # Center the window
+        selection_window.update_idletasks()
+        x = (selection_window.winfo_screenwidth() // 2) - 200
+        y = (selection_window.winfo_screenheight() // 2) - 150
+        selection_window.geometry(f"400x300+{x}+{y}")
+        
+        # Title label
+        title_label = tk.Label(selection_window, text="Select Module to Configure", 
+                              font=('Arial', 12, 'bold'))
+        title_label.pack(pady=10)
+        
+        # Module list frame
+        list_frame = tk.Frame(selection_window)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # Listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=('Arial', 10))
+        listbox.pack(fill=tk.BOTH, expand=True)
+        scrollbar.config(command=listbox.yview)
+        
+        # Populate listbox
+        for module in modules:
+            display_name = f"{module.__class__.__name__} ({module.label})"
+            listbox.insert(tk.END, display_name)
+            
+        # Button frame
+        button_frame = tk.Frame(selection_window)
+        button_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        def configure_selected():
+            selection = listbox.curselection()
+            if selection:
+                selected_module = modules[selection[0]]
+                selection_window.destroy()
+                try:
+                    result = DialogManager.show_module_dialog(selected_module, self.root)
+                    if result:
+                        print(f"Module {selected_module.__class__.__name__} configured: {result}")
+                except Exception as e:
+                    if messagebox:
+                        messagebox.showerror("Configuration Error", f"Error configuring module: {e}")
+            else:
+                if messagebox:
+                    messagebox.showwarning("No Selection", "Please select a module to configure.")
+                    
+        tk.Button(button_frame, text="Configure", command=configure_selected,
+                 width=12, font=('Arial', 10)).pack(side=tk.RIGHT, padx=5)
+        tk.Button(button_frame, text="Cancel", command=selection_window.destroy,
+                 width=12, font=('Arial', 10)).pack(side=tk.RIGHT, padx=5)
 
     # ------------------------------------------------------------------
     # Application execution
