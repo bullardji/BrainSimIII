@@ -43,9 +43,6 @@
         <PackageReference Include="pythonnet" Version="3.0.3" />
     </ItemGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\UKS\UKS.csproj" />
-    </ItemGroup>
 
     <ItemGroup>
         <None Update="Iconsmall.ico">
