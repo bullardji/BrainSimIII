@@ -21,6 +21,7 @@ class Clause:
     clause: "Relationship"
 
 
+
 @dataclass
 class Relationship:
     source: "Thing"
@@ -64,22 +65,3 @@ class Relationship:
             and self.target is other.target
         )
 
-
-@dataclass
-class QueryRelationship(Relationship):
-    """Relationship wrapper returned from queries with property lists."""
-
-    type_properties: List["Thing"] = field(default_factory=list)
-    source_properties: List["Thing"] = field(default_factory=list)
-    target_properties: List["Thing"] = field(default_factory=list)
-
-    @classmethod
-    def from_relationship(cls, rel: Relationship) -> "QueryRelationship":
-        qr = cls(rel.source, rel.reltype, rel.target, rel.weight, rel.time_to_live)
-        qr.last_used = rel.last_used
-        qr.hits = rel.hits
-        qr.misses = rel.misses
-        qr.clauses = list(rel.clauses)
-        qr.clauses_from = list(rel.clauses_from)
-        qr.created = rel.created
-        return qr

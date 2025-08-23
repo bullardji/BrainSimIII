@@ -41,16 +41,6 @@ except Exception:  # pragma: no cover - optional dependency
 UDP_RECEIVE_PORT = 3333
 UDP_SEND_PORT = 3333
 
-TCP_PORT = 54321
-SUBSCRIPTION_PORT = 9090
-AUDIO_PORT = 666
-
-# globals used for device pairing similar to the C# Network.cs helper
-pod_paired: bool = False
-the_tcp_stream_in: Optional[socket.socket] = None
-the_tcp_stream_out: Optional[socket.socket] = None
-_broadcast_address: Optional[str] = None
-
 
 def _create_udp_socket(broadcast: bool = False) -> socket.socket:
     """Create a UDP socket optionally configured for broadcast."""
@@ -108,91 +98,6 @@ def broadcast(message: str, port: int = UDP_SEND_PORT, address: Optional[str] = 
     addr = address or set_broadcast_address()
     with _create_udp_socket(broadcast=True) as s:
         s.sendto(data, (addr, port))
-
-
-# ---------------------------------------------------------------------------
-# TCP helpers
-# ---------------------------------------------------------------------------
-
-
-def tcp_listen(port: int = TCP_PORT) -> socket.socket:
-    """Return a listening TCP socket bound to *port*.
-
-    The caller is responsible for closing the returned socket when finished.
-    """
-
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("", port))
-    server.listen(1)
-    return server
-
-
-def tcp_connect(host: str, port: int = TCP_PORT, *, timeout: float = 5.0) -> socket.socket:
-    """Connect to a TCP server and return the connected socket."""
-
-    client = socket.create_connection((host, port), timeout=timeout)
-    return client
-
-
-def tcp_accept(server: socket.socket, *, timeout: float = 15.0) -> socket.socket:
-    """Accept a connection from ``server`` and return the client socket."""
-
-    server.settimeout(timeout)
-    conn, _ = server.accept()
-    return conn
-
-
-def tcp_send(sock: socket.socket, message: str) -> None:
-    """Send *message* over the TCP connection ``sock``."""
-
-    data = (message + "\n").encode("utf-8")
-    sock.sendall(data)
-
-
-def tcp_receive(sock: socket.socket, bufsize: int = 4096) -> str:
-    """Receive a line of text from ``sock``."""
-
-    data = sock.recv(bufsize)
-    return data.decode("utf-8")
-
-
-def init_tcp(pod_ip: str, port: int = TCP_PORT, timeout: float = 15.0) -> bool:
-    """Listen for a TCP connection from ``pod_ip`` and establish streams.
-
-    This mirrors the pairing handshake used by hardware pods.  A listening
-    socket is opened on ``port`` and a connection from the device is awaited up
-    to ``timeout`` seconds.  ``pod_paired`` is set to ``True`` on success and
-    the incoming/outgoing sockets are stored for later use by
-    :func:`send_string_to_pod_tcp`.
-    """
-    global pod_paired, the_tcp_stream_in, the_tcp_stream_out
-    server = tcp_listen(port)
-    server.settimeout(timeout)
-    try:
-        conn, addr = server.accept()
-    except Exception:
-        server.close()
-        return False
-    if addr[0] != pod_ip and pod_ip != "0.0.0.0":
-        conn.close()
-        server.close()
-        return False
-    the_tcp_stream_in = conn
-    the_tcp_stream_out = conn
-    pod_paired = True
-    server.close()
-    return True
-
-
-def send_string_to_pod_tcp(message: str) -> None:
-    """Send ``message`` over the paired TCP connection if available."""
-    if not pod_paired or the_tcp_stream_out is None:
-        return
-    try:
-        tcp_send(the_tcp_stream_out, message)
-    except OSError:
-        pass
 
 
 # ---------------------------------------------------------------------------

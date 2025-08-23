@@ -76,41 +76,6 @@ def test_udp_setup_send(tmp_path):
     assert messages == ["hello"]
 
 
-def test_tcp_echo():
-    server = tcp_listen(0)
-    port = server.getsockname()[1]
-
-    def server_thread():
-        conn = tcp_accept(server)
-        data = tcp_receive(conn).strip()
-        tcp_send(conn, data.upper())
-        conn.close()
-
-    t = threading.Thread(target=server_thread)
-    t.start()
-    client = tcp_connect("127.0.0.1", port)
-    tcp_send(client, "hello")
-    resp = tcp_receive(client).strip()
-    client.close()
-    t.join()
-    server.close()
-    assert resp == "HELLO"
-
-
-def test_init_tcp_handshake():
-    # Start thread simulating device connecting to us
-    def client():
-        time.sleep(0.1)
-        s = socket.create_connection(("127.0.0.1", 54321))
-        s.close()
-
-    t = threading.Thread(target=client)
-    t.start()
-    assert network.init_tcp("127.0.0.1") is True
-    t.join()
-    assert network.pod_paired
-
-
 def test_http_get_post():
     from http.server import BaseHTTPRequestHandler, HTTPServer
 

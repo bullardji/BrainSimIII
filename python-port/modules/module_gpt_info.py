@@ -16,6 +16,7 @@ from .module_base import ModuleBase
 from gpt import GPTClient
 
 
+
 class ModuleGPTInfo(ModuleBase):
     Output: str = ""
 

@@ -30,3 +30,4 @@ def test_module_remove_redundancy_prunes_child_attributes():
 
     assert uks.get_relationship("child", "has-color", "red") is None
     assert uks.get_relationship("child", "has-color", "blue") is None
+

@@ -19,26 +19,3 @@ from .module_vision import ModuleVision
 from .module_vision_find_segments_and_arcs import ModuleVisionFindSegmentsAndArcs
 from .module_shape import ModuleShape
 from .module_mental_model import ModuleMentalModel
-
-__all__ = [
-    "ModuleBase",
-    "ModuleDescription",
-    "ModuleHandler",
-    "ModuleUKS",
-    "ModuleAddCounts",
-    "ModuleBalanceTree",
-    "ModuleAttributeBubble",
-    "ModuleClassCreate",
-    "ModuleGPTInfo",
-    "ModuleRemoveRedundancy",
-    "ModuleStressTest",
-    "ModuleMine",
-    "ModuleUKSClause",
-    "ModuleOnlineInfo",
-    "ModuleUKSQuery",
-    "ModuleUKSStatement",
-    "ModuleVision",
-    "ModuleVisionFindSegmentsAndArcs",
-    "ModuleShape",
-    "ModuleMentalModel",
-]

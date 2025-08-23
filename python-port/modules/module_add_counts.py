@@ -58,6 +58,7 @@ class ModuleAddCounts(ModuleBase):
             self._setup()
             return
         self.start_worker(self.do_the_work)
+
         self._setup()
 
     # ------------------------------------------------------------------

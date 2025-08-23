@@ -95,3 +95,4 @@ class ModuleBase:
         thread.start()
         self._workers.append(thread)
         return thread
+

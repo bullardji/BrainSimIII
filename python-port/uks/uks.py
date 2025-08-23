@@ -14,6 +14,7 @@ from .thing_labels import ThingLabels
 from .statement import Statement
 
 
+
 class UKS:
     """Container for all Things and Relationships.
 
