@@ -2,13 +2,14 @@ import sys
 from pathlib import Path
 import socket
 import threading
-import sys
-from pathlib import Path
+import time
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import network
 from network import (
     udp_send,
+    udp_setup_send,
     tcp_listen,
     tcp_accept,
     tcp_connect,
@@ -39,25 +40,40 @@ def test_udp_send_local():
     assert messages == ["hello"]
 
 
-def test_tcp_echo():
-    server = tcp_listen(0)
-    port = server.getsockname()[1]
+def test_broadcast_local():
+    recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    recv_sock.bind(("127.0.0.1", 0))
+    port = recv_sock.getsockname()[1]
+    messages: list[str] = []
 
-    def server_thread():
-        conn = tcp_accept(server)
-        data = tcp_receive(conn).strip()
-        tcp_send(conn, data.upper())
-        conn.close()
+    def receiver():
+        data, _ = recv_sock.recvfrom(1024)
+        messages.append(data.decode())
 
-    t = threading.Thread(target=server_thread)
+    t = threading.Thread(target=receiver)
     t.start()
-    client = tcp_connect("127.0.0.1", port)
-    tcp_send(client, "hello")
-    resp = tcp_receive(client).strip()
-    client.close()
-    t.join()
-    server.close()
-    assert resp == "HELLO"
+    network.broadcast("hi", port=port, address="127.0.0.1")
+    t.join(timeout=1)
+    recv_sock.close()
+    assert messages == ["hi"]
+
+
+def test_udp_setup_send(tmp_path):
+    recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    recv_sock.bind(("127.0.0.1", 0))
+    port = recv_sock.getsockname()[1]
+    messages: list[str] = []
+
+    def receiver():
+        data, _ = recv_sock.recvfrom(1024)
+        messages.append(data.decode())
+
+    t = threading.Thread(target=receiver)
+    t.start()
+    assert udp_setup_send("hello", "127.0.0.1", port, local_port=0)
+    t.join(timeout=1)
+    recv_sock.close()
+    assert messages == ["hello"]
 
 
 def test_http_get_post():

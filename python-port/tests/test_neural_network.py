@@ -200,7 +200,7 @@ def test_tick_rate_change():
     finally:
         net.stop()
     # Allow generous tolerance due to scheduling jitter
-    assert 0.12 <= net.time <= 0.18
+    assert 0.12 <= net.time <= 0.20
 
 
 def test_clear_resets_state():

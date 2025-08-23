@@ -14,7 +14,14 @@ from typing import Callable, Optional
 import os
 import threading
 
-try:
+import inflect
+
+try:  # optional dependency used for token counting
+    import tiktoken
+except Exception:  # pragma: no cover
+    tiktoken = None  # type: ignore
+
+try:  # OpenAI library is optional for offline/local usage
     import openai
 except Exception:  # pragma: no cover
     openai = None  # type: ignore
@@ -48,6 +55,17 @@ class GPTClient:
         self.model = model
         self.local_model = local_model
         self._lock = threading.Lock()
+        self._inflect = inflect.engine()
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.total_tokens = 0
+        if tiktoken is not None:
+            try:
+                self._encoding = tiktoken.encoding_for_model(self.model)
+            except Exception:  # pragma: no cover - fall back to default encoding
+                self._encoding = tiktoken.get_encoding("cl100k_base")
+        else:
+            self._encoding = None
         if self.api_key and openai is not None:
             openai.api_key = self.api_key
 
@@ -61,7 +79,9 @@ class GPTClient:
 
         with self._lock:
             if self.local_model is not None:
-                return self.local_model(prompt, max_tokens)
+                output = self.local_model(prompt, max_tokens)
+                self._update_token_usage(prompt, output)
+                return output
 
             if openai is None:
                 raise RuntimeError("openai package is not installed and no local model provided")
@@ -72,4 +92,46 @@ class GPTClient:
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
             )
-            return completion.choices[0].message["content"].strip()
+            output = completion.choices[0].message["content"].strip()
+            usage = completion.get("usage")
+            if usage:
+                self.prompt_tokens += usage.get("prompt_tokens", 0)
+                self.completion_tokens += usage.get("completion_tokens", 0)
+                self.total_tokens += usage.get("total_tokens", 0)
+            else:
+                self._update_token_usage(prompt, output)
+            return output
+
+    # ------------------------------------------------------------------
+    # Token accounting helpers
+    def _update_token_usage(self, prompt: str, completion: str) -> None:
+        """Estimate token usage for ``prompt``/``completion`` pairs."""
+
+        if self._encoding is not None:  # use tiktoken when available
+            prompt_toks = len(self._encoding.encode(prompt))
+            completion_toks = len(self._encoding.encode(completion))
+        else:  # simple whitespace fallback
+            prompt_toks = len(prompt.split())
+            completion_toks = len(completion.split())
+        self.prompt_tokens += prompt_toks
+        self.completion_tokens += completion_toks
+        self.total_tokens += prompt_toks + completion_toks
+
+    # ------------------------------------------------------------------
+    # Pluralisation helpers
+    def pluralize(self, word: str, count: int | None = None) -> str:
+        """Return the plural form of ``word``.
+
+        If ``count`` is provided the pluralisation rules from ``inflect`` are
+        applied taking singular/plural choice into account.
+        """
+
+        if count is None:
+            return self._inflect.plural(word)
+        return self._inflect.plural(word, count)
+
+    def singularize(self, word: str) -> str:
+        """Return the singular form of ``word``."""
+
+        result = self._inflect.singular_noun(word)
+        return result if result else word

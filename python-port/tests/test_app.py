@@ -25,37 +25,9 @@ class DummyMenu:
     def config(self, **kwargs):
         pass
 
-
-class DummyRoot:
-    def __init__(self):
-        self.menu = None
-        self.titled = None
-        self.tk = self
-
-    def title(self, t):
-        self.titled = t
-
-    def config(self, **kwargs):
-        self.menu = kwargs.get("menu")
-
-    def destroy(self):
+    def delete(self, *args, **kwargs):
         pass
 
-
-class DummyWidget:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def pack(self, *args, **kwargs):
-        pass
-
-
-@patch("tkinter.Button", DummyWidget)
-@patch("tkinter.Frame", DummyWidget)
-@patch("tkinter.PhotoImage", lambda *a, **k: object())
-@patch("tkinter.Menu", DummyMenu)
-@patch("tkinter.Tk", DummyRoot)
-def test_save_and_load_project(tmp_path):
     application = app.BrainSimApp()
 
     # populate some data
@@ -66,6 +38,7 @@ def test_save_and_load_project(tmp_path):
 
     project = tmp_path / "proj.json"
     application.save_project(str(project))
+    assert application.mru[0] == project
 
     # reset everything
     application.new_project()

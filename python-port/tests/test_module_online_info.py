@@ -1,10 +1,14 @@
 import sys
 from pathlib import Path
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from modules.module_online_info import ModuleOnlineInfo
+from modules.module_online_info import ModuleOnlineInfo, requests
 from uks import UKS
+
+if requests is None:
+    pytest.skip("requests not available", allow_module_level=True)
 
 
 def test_online_info_adds_summary(monkeypatch):

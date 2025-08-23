@@ -135,7 +135,7 @@ class UKS:
 
         ct = self._thing_from_param(clause_type)
         source_rel.add_clause(ct, target_rel)
-        
+
     def get_relationship(
         self,
         source: str | Thing,
@@ -285,7 +285,6 @@ class UKS:
         source_regex: Optional[str] = None,
         reltype_regex: Optional[str] = None,
         target_regex: Optional[str] = None,
-
         min_weight: float = 0.0,
         max_ttl: Optional[float] = None,
         include_inherited: bool = False,
@@ -328,7 +327,6 @@ class UKS:
                 else:
                     r.misses += 1
 
-
         if detect_conflicts:
             conflicts: List[Relationship] = []
             seen: Dict[Thing, Relationship] = {}
@@ -341,8 +339,8 @@ class UKS:
                 else:
                     seen[r.reltype] = r
             return conflicts
-        return [QueryRelationship.from_relationship(r) for r in results]
 
+        return [QueryRelationship.from_relationship(r) for r in results]
 
     # ------------------------------------------------------------------
     # Event hooks

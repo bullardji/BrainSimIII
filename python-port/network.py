@@ -32,7 +32,6 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
-
 try:  # optional vectorised maths
     import numpy as np  # type: ignore
     _HAVE_NUMPY = True
@@ -41,9 +40,6 @@ except Exception:  # pragma: no cover - optional dependency
 
 UDP_RECEIVE_PORT = 3333
 UDP_SEND_PORT = 3333
-TCP_PORT = 54321
-SUBSCRIPTION_PORT = 9090
-AUDIO_PORT = 666
 
 
 def _create_udp_socket(broadcast: bool = False) -> socket.socket:
@@ -54,25 +50,6 @@ def _create_udp_socket(broadcast: bool = False) -> socket.socket:
     return s
 
 
-def broadcast(message: str, port: int = UDP_SEND_PORT, address: Optional[str] = None) -> None:
-    """Send *message* as a UDP broadcast.
-
-    Parameters
-    ----------
-    message:
-        The string message to send.
-    port:
-        The UDP port to broadcast on.  Defaults to :data:`UDP_SEND_PORT`.
-    address:
-        Optional address to broadcast to.  If omitted, ``'<broadcast>'`` is used
-        which lets the OS determine the correct broadcast address.
-    """
-    data = message.encode("utf-8")
-    addr = address or "<broadcast>"
-    with _create_udp_socket(broadcast=True) as s:
-        s.sendto(data, (addr, port))
-
-
 def udp_send(message: str, ip: str, port: int) -> None:
     """Send *message* to ``ip``/``port`` via UDP."""
     data = message.encode("utf-8")
@@ -80,51 +57,47 @@ def udp_send(message: str, ip: str, port: int) -> None:
         s.sendto(data, (ip, port))
 
 
-# ---------------------------------------------------------------------------
-# TCP helpers
-# ---------------------------------------------------------------------------
+def udp_setup_send(message: str, ip: str, port: int, *, local_port: int = 9090) -> bool:
+    """Send *message* from a specific local UDP ``local_port``.
 
-
-def tcp_listen(port: int = TCP_PORT) -> socket.socket:
-    """Return a listening TCP socket bound to *port*.
-
-    The caller is responsible for closing the returned socket when finished.
+    This mirrors the ``UDP_Setup_Send`` helper in the C# code which is used
+    during hardware pairing.  Returns ``True`` if the datagram was sent.
     """
-
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("", port))
-    server.listen(1)
-    return server
-
-
-def tcp_connect(host: str, port: int = TCP_PORT, *, timeout: float = 5.0) -> socket.socket:
-    """Connect to a TCP server and return the connected socket."""
-
-    client = socket.create_connection((host, port), timeout=timeout)
-    return client
+    try:
+        data = message.encode("utf-8")
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.bind(("", local_port))
+            s.sendto(data, (ip, port))
+        return True
+    except OSError:
+        return False
 
 
-def tcp_accept(server: socket.socket, *, timeout: float = 15.0) -> socket.socket:
-    """Accept a connection from ``server`` and return the client socket."""
+def set_broadcast_address() -> str:
+    """Determine the local network broadcast address.
 
-    server.settimeout(timeout)
-    conn, _ = server.accept()
-    return conn
+    The implementation mimics the simplistic approach used by the C# project
+    which replaces the final octet of the first IPv4 address with ``255``.
+    The result is cached and returned.
+    """
+    global _broadcast_address
+    if _broadcast_address:
+        return _broadcast_address
+    host = socket.gethostbyname_ex(socket.gethostname())[2]
+    for ip in host:
+        if "." in ip:
+            parts = ip.split(".")
+            _broadcast_address = ".".join(parts[:3] + ["255"])
+            return _broadcast_address
+    raise RuntimeError("No IPv4 address found for broadcast computation")
 
 
-def tcp_send(sock: socket.socket, message: str) -> None:
-    """Send *message* over the TCP connection ``sock``."""
-
-    data = (message + "\n").encode("utf-8")
-    sock.sendall(data)
-
-
-def tcp_receive(sock: socket.socket, bufsize: int = 4096) -> str:
-    """Receive a line of text from ``sock``."""
-
-    data = sock.recv(bufsize)
-    return data.decode("utf-8")
+def broadcast(message: str, port: int = UDP_SEND_PORT, address: Optional[str] = None) -> None:
+    """Send *message* as a UDP broadcast."""
+    data = message.encode("utf-8")
+    addr = address or set_broadcast_address()
+    with _create_udp_socket(broadcast=True) as s:
+        s.sendto(data, (addr, port))
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +300,6 @@ class Network:
         self.time: float = 0.0
         self._dt: float = 1.0
         self.tick_rate: float = 1.0
-
         self.profiler: Optional[Callable[[float], None]] = None
 
     # -- construction -------------------------------------------------
@@ -396,7 +368,6 @@ class Network:
         self._synapses.append(syn)
         return syn
 
-
     def disconnect(self, pre: str, post: str) -> None:
         """Remove the synapse from ``pre`` to ``post`` if present."""
 
@@ -428,7 +399,7 @@ class Network:
             self.layers.clear()
             self._synapses.clear()
             self.time = 0.0
-            
+
     # -- runtime ------------------------------------------------------
     def set_input(self, neuron_id: str, value: float) -> None:
         """Directly set the output value of ``neuron_id``."""
@@ -662,4 +633,37 @@ class Network:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         self.from_dict(data)
+
+    # -- XML persistence --------------------------------------------
+    def save_xml(self, path: str) -> None:
+        """Save the network to *path* in XML format."""
+        from xml_utils import save_xml
+
+        save_xml(path, self.to_dict(), root_tag="Network")
+
+    def load_xml(self, path: str) -> None:
+        """Load network state from an XML file."""
+        from xml_utils import load_xml
+
+        data = load_xml(path)
+        self.from_dict(data)
+
+
+__all__ = [
+    "broadcast",
+    "udp_send",
+    "udp_setup_send",
+    "tcp_listen",
+    "tcp_connect",
+    "tcp_accept",
+    "tcp_send",
+    "tcp_receive",
+    "init_tcp",
+    "send_string_to_pod_tcp",
+    "http_get",
+    "http_post",
+    "audio_broadcast",
+    "SubscriptionServer",
+    "Network",
+]
 

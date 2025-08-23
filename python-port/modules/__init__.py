@@ -16,24 +16,6 @@ from .module_online_info import ModuleOnlineInfo
 from .module_uks_query import ModuleUKSQuery
 from .module_uks_statement import ModuleUKSStatement
 from .module_vision import ModuleVision
-
-__all__ = [
-    "ModuleBase",
-    "ModuleDescription",
-    "ModuleHandler",
-    "ModuleUKS",
-    "ModuleAddCounts",
-    "ModuleBalanceTree",
-    "ModuleAttributeBubble",
-    "ModuleClassCreate",
-    "ModuleGPTInfo",
-    "ModuleRemoveRedundancy",
-    "ModuleStressTest",
-    "ModuleMine",
-    "ModuleUKSClause",
-    "ModuleOnlineInfo",
-    "ModuleUKSQuery",
-    "ModuleUKSStatement",
-    "ModuleVision",
-]
-
+from .module_vision_find_segments_and_arcs import ModuleVisionFindSegmentsAndArcs
+from .module_shape import ModuleShape
+from .module_mental_model import ModuleMentalModel

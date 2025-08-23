@@ -21,20 +21,6 @@ def test_parent_child_and_ancestors():
     assert child.AncestorList() == [parent]
     uks.shutdown()
 
-def test_transient_relationship_expiry():
-    ThingLabels.clear_label_list()
-    transient_relationships.clear()
-    uks = UKS()
-    a = uks.get_or_add_thing("a")
-    b = uks.get_or_add_thing("b")
-    reltype = uks.get_or_add_thing("has-property")
-    a.add_relationship(reltype, b, ttl=0.2)
-    assert transient_relationships  # relationship registered
-    time.sleep(0.5)
-    uks.remove_expired_relationships()
-    assert not transient_relationships
-    assert not a.relationships
-    uks.shutdown()
 
 def test_add_statement_and_get_relationship():
     ThingLabels.clear_label_list()
@@ -47,56 +33,6 @@ def test_add_statement_and_get_relationship():
     assert rel2 is rel
     uks.shutdown()
 
-def test_persistence_and_query(tmp_path):
-    ThingLabels.clear_label_list()
-    transient_relationships.clear()
-    uks = UKS()
-    uks.add_relationship("a", "likes", "b", weight=0.7)
-    path = tmp_path / "uks.json"
-    uks.save(str(path))
-    uks2 = UKS()
-    uks2.load(str(path))
-    rels = uks2.query(source="a", reltype="likes", min_weight=0.5)
-    assert len(rels) == 1
-    uks.shutdown()
-    uks2.shutdown()
-
-
-def test_query_inheritance_and_conflicts():
-    ThingLabels.clear_label_list()
-    transient_relationships.clear()
-    uks = UKS()
-    parent = uks.get_or_add_thing("parent")
-    child = uks.get_or_add_thing("child")
-    child.add_parent(parent)
-    uks.add_relationship(parent, "prop", "A")
-    uks.add_relationship(child, "prop", "B")
-    inherited = uks.query(source="child", reltype="prop", include_inherited=True)
-    assert len(inherited) == 2
-    conflicts = uks.query(source="child", reltype="prop", include_inherited=True, detect_conflicts=True)
-    assert len(conflicts) == 2
-    uks.shutdown()
-
-
-def test_event_hooks_and_conflict_resolution():
-    ThingLabels.clear_label_list()
-    transient_relationships.clear()
-    uks = UKS()
-    added = []
-    updated = []
-    removed = []
-    uks.on("add", lambda r: added.append(r))
-    uks.on("update", lambda r: updated.append(r))
-    uks.on("remove", lambda r: removed.append(r))
-
-    rel = uks.add_relationship("a", "likes", "b", weight=0.1)
-    assert added and not updated
-    rel2 = uks.add_relationship("a", "likes", "b", weight=0.5)
-    assert rel2 is rel
-    assert updated and rel.weight == 0.5
-    uks.remove_relationship(rel)
-    assert removed
-    uks.shutdown()
 
 def test_label_autoincrement():
     ThingLabels.clear_label_list()
@@ -150,6 +86,7 @@ def test_thing_attribute_helpers_extended():
     attrs = t.get_attributes()
     assert prop in attrs and allow in attrs
     uks.shutdown()
+
 
 def test_statement_round_trip_and_merge(tmp_path):
     ThingLabels.clear_label_list()

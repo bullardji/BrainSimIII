@@ -40,7 +40,7 @@ class ModuleAddCounts(ModuleBase):
             self._timer.cancel()
             self._timer = None
         super().on_stop()
-        
+
     def fire(self) -> None:
         if not self.initialized:
             self.initialize()
@@ -127,4 +127,3 @@ class ModuleAddCounts(ModuleBase):
 
     def set_parameters(self, params: dict) -> None:
         self.interval = float(params.get("interval", self.interval))
-

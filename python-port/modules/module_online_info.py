@@ -1,8 +1,12 @@
 from __future__ import annotations
 import threading
+import json
 from typing import Any, Dict
 
-import requests
+try:
+    import requests
+except Exception:  # pragma: no cover - optional dependency
+    requests = None  # type: ignore
 
 from .module_base import ModuleBase
 from uks import UKS
@@ -55,6 +59,15 @@ class ModuleOnlineInfo(ModuleBase):
 
     def _get_summary(self, term: str) -> str:
         url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{term}"
+        if requests is None:  # fallback using urllib
+            from urllib.request import urlopen
+
+            try:
+                with urlopen(url, timeout=10) as resp:
+                    data = json.load(resp)
+                    return data.get("extract", "")
+            except Exception:
+                return ""
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             data: Dict[str, Any] = resp.json()
